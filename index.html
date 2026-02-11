@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NEXUS KYC Pro</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #fff; min-height: 100vh; }
+      .auth-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%); }
+      .auth-box { background: rgba(255,255,255,0.05); backdrop-filter: blur(10px); padding: 3rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 400px; }
+      .auth-box h1 { text-align: center; margin-bottom: 0.5rem; background: linear-gradient(90deg, #00d4ff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+      .auth-box h2 { text-align: center; margin-bottom: 2rem; color: #888; font-weight: 400; }
+      .auth-box input { width: 100%; padding: 1rem; margin-bottom: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem; }
+      .auth-box button { width: 100%; padding: 1rem; background: linear-gradient(90deg, #00d4ff, #7b2cbf); border: none; border-radius: 8px; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; }
+      .dashboard { padding: 2rem; max-width: 1200px; margin: 0 auto; }
+      .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+      .stat-card { background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
+      .stat-value { font-size: 2.5rem; font-weight: 700; background: linear-gradient(90deg, #00d4ff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+      .error { background: rgba(255,0,0,0.1); color: #ff6b6b; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      const { useState, useEffect } = React;
+      const API_URL = 'https://nexus-kyc-pro-production.up.railway.app';
+
+      function App() {
+        const [token, setToken] = useState(localStorage.getItem('token'));
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+        const [name, setName] = useState('');
+        const [isLogin, setIsLogin] = useState(true);
+        const [error, setError] = useState('');
+
+        const handleAuth = async (e) => {
+          e.preventDefault();
+          try {
+            const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+            const body = isLogin ? { email, password } : { email, password, name };
+            const response = await fetch(API_URL + endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Authentication failed');
+            localStorage.setItem('token', data.token);
+            setToken(data.token);
+          } catch (err) {
+            setError(err.message);
+          }
+        };
+
+        const handleLogout = () => {
+          localStorage.removeItem('token');
+          setToken(null);
+        };
+
+        if (!token) {
+          return (
+            <div className="auth-container">
+              <div className="auth-box">
+                <h1>NEXUS KYC Pro</h1>
+                <h2>{isLogin ? 'Login' : 'Register'}</h2>
+                <form onSubmit={handleAuth}>
+                  {!isLogin && <input type="text" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />}
+                  <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  {error && <div className="error">{error}</div>}
+                  <button type="submit">{isLogin ? 'Login' : 'Register'}</button>
+                </form>
+                <p style={{textAlign: 'center', marginTop: '1rem'}}>
+                  {isLogin ? "Don't have an account? " : "Already have an account? "}
+                  <button style={{background: 'none', border: 'none', color: '#00d4ff', cursor: 'pointer'}} onClick={() => setIsLogin(!isLogin)}>
+                    {isLogin ? 'Register' : 'Login'}
+                  </button>
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="dashboard">
+            <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)'}}>
+              <h1 style={{background: 'linear-gradient(90deg, #00d4ff, #7b2cbf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>NEXUS KYC Pro Dashboard</h1>
+              <button onClick={handleLogout} style={{padding: '0.5rem 1.5rem', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', cursor: 'pointer'}}>Logout</button>
+            </header>
+            <div className="stats-grid">
+              <div className="stat-card">
+                <h3 style={{color: '#888', fontSize: '0.875rem', marginBottom: '0.5rem'}}>Backend Status</h3>
+                <p className="stat-value">✅ Connected</p>
+              </div>
+              <div className="stat-card">
+                <h3 style={{color: '#888', fontSize: '0.875rem', marginBottom: '0.5rem'}}>API URL</h3>
+                <p style={{fontSize: '0.875rem', color: '#00d4ff'}}>{API_URL}</p>
+              </div>
+            </div>
+            <div style={{background: 'rgba(0,212,255,0.05)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(0,212,255,0.2)'}}>
+              <h2 style={{color: '#00d4ff', marginBottom: '1rem'}}>Welcome to NEXUS KYC Pro! 🎉</h2>
+              <p>Your backend is successfully connected.</p>
+              <p style={{marginTop: '1rem'}}>Available endpoints:</p>
+              <ul style={{marginTop: '0.5rem', paddingLeft: '1.5rem'}}>
+                <li><code style={{color: '#00d4ff'}}>/api/auth/register</code></li>
+                <li><code style={{color: '#00d4ff'}}>/api/auth/login</code></li>
+                <li><code style={{color: '#00d4ff'}}>/api/dashboard/stats</code></li>
+                <li><code style={{color: '#00d4ff'}}>/api/companies</code></li>
+                <li><code style={{color: '#00d4ff'}}>/api/cases</code></li>
+              </ul>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
