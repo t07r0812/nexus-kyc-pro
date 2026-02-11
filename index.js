@@ -79,7 +79,6 @@ app.get('/health', (req, res) => {
 app.get('/api', (req, res) => {
   res.json({ message: 'NEXUS KYC Pro API', version: '1.0.0', endpoints: ['/api/auth/register', '/api/auth/login', '/api/dashboard/stats'] });
 });
-
 const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -99,17 +98,44 @@ const html = `<!DOCTYPE html>
     .auth-box input { width: 100%; padding: 1rem; margin-bottom: 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem; }
     .auth-box button { width: 100%; padding: 1rem; background: linear-gradient(90deg, #00d4ff, #7b2cbf); border: none; border-radius: 8px; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; }
     .dashboard { padding: 2rem; max-width: 1200px; margin: 0 auto; }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    header h1 { background: linear-gradient(90deg, #00d4ff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
     .stat-card { background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
-    .stat-value { font-size: 2.5rem; font-weight: 700; background: linear-gradient(90deg, #00d4ff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-card h3 { color: #888; font-size: 0.875rem; margin-bottom: 0.5rem; }
+    .stat-value { font-size: 2rem; font-weight: 700; background: linear-gradient(90deg, #00d4ff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .btn-primary { padding: 0.75rem 1.5rem; background: linear-gradient(90deg, #00d4ff, #7b2cbf); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; margin-bottom: 1rem; }
+    .btn-secondary { padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; cursor: pointer; margin-left: 0.5rem; }
+    .section { background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
+    .section h2 { color: #00d4ff; margin-bottom: 1rem; font-size: 1.25rem; }
+    .pipeline { display: flex; gap: 0.5rem; margin-top: 1rem; overflow-x: auto; }
+    .pipeline-step { flex: 1; min-width: 120px; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: center; border: 2px solid transparent; }
+    .pipeline-step.active { border-color: #00d4ff; background: rgba(0,212,255,0.1); }
+    .pipeline-step.completed { border-color: #10b981; background: rgba(16,185,129,0.1); }
+    .pipeline-step h4 { font-size: 0.75rem; color: #888; margin-bottom: 0.5rem; }
+    .pipeline-step p { font-size: 0.875rem; font-weight: 600; }
+    input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 0.75rem; margin-bottom: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; }
+    .company-list { margin-top: 1rem; }
+    .company-item { padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 0.5rem; border: 1px solid rgba(255,255,255,0.1); }
     .error { background: rgba(255,0,0,0.1); color: #ff6b6b; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; }
+    .success { background: rgba(16,185,129,0.1); color: #10b981; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; }
   </style>
 </head>
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useEffect } = React;
     const API_URL = window.location.origin;
+    
+    const PIPELINE_STEPS = [
+      { id: 1, name: '1. Identifikation', desc: 'Kunde identifizieren' },
+      { id: 2, name: '2. Dokumente', desc: 'Unterlagen prüfen' },
+      { id: 3, name: '3. Handelsregister', desc: 'HRB-Abfrage' },
+      { id: 4, name: '4. UBO-Ermittlung', desc: 'Wirtschaftliche Eigentümer' },
+      { id: 5, name: '5. Compliance', desc: 'PEP/Sanktionslisten' },
+      { id: 6, name: '6. Freigabe', desc: 'KYC abschließen' }
+    ];
+
     function App() {
       const [token, setToken] = useState(localStorage.getItem('token'));
       const [email, setEmail] = useState('');
@@ -117,6 +143,19 @@ const html = `<!DOCTYPE html>
       const [name, setName] = useState('');
       const [isLogin, setIsLogin] = useState(true);
       const [error, setError] = useState('');
+      const [activeTab, setActiveTab] = useState('dashboard');
+      const [searchQuery, setSearchQuery] = useState('');
+      const [companies, setCompanies] = useState([]);
+      const [cases, setCases] = useState([]);
+      const [message, setMessage] = useState('');
+
+      useEffect(() => {
+        if (token) {
+          fetchCompanies();
+          fetchCases();
+        }
+      }, [token]);
+
       const handleAuth = async (e) => {
         e.preventDefault();
         try {
@@ -129,7 +168,54 @@ const html = `<!DOCTYPE html>
           setToken(data.token);
         } catch (err) { setError(err.message); }
       };
+
       const handleLogout = () => { localStorage.removeItem('token'); setToken(null); };
+
+      const fetchCompanies = async () => {
+        try {
+          const response = await fetch(API_URL + '/api/companies', { headers: { 'Authorization': 'Bearer ' + token } });
+          if (response.ok) {
+            const data = await response.json();
+            setCompanies(data);
+          }
+        } catch (err) { console.error(err); }
+      };
+
+      const fetchCases = async () => {
+        try {
+          const response = await fetch(API_URL + '/api/cases', { headers: { 'Authorization': 'Bearer ' + token } });
+          if (response.ok) {
+            const data = await response.json();
+            setCases(data);
+          }
+        } catch (err) { console.error(err); }
+      };
+
+      const searchHandelsregister = async () => {
+        if (!searchQuery) return;
+        try {
+          const response = await fetch(API_URL + '/api/companies/search-handelsregister?query=' + encodeURIComponent(searchQuery), {
+            headers: { 'Authorization': 'Bearer ' + token }
+          });
+          const data = await response.json();
+          setMessage('Gefunden: ' + (data[0]?.name || 'Keine Ergebnisse'));
+        } catch (err) { setError('Suche fehlgeschlagen'); }
+      };
+
+      const createCase = async () => {
+        try {
+          const response = await fetch(API_URL + '/api/cases', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ company_id: 1, notes: 'Neuer KYC Case' })
+          });
+          if (response.ok) {
+            setMessage('KYC Case erfolgreich erstellt!');
+            fetchCases();
+          }
+        } catch (err) { setError('Case erstellen fehlgeschlagen'); }
+      };
+
       if (!token) {
         return (
           <div className="auth-container">
@@ -151,33 +237,99 @@ const html = `<!DOCTYPE html>
           </div>
         );
       }
+
       return (
         <div className="dashboard">
-          <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)'}}>
-            <h1 style={{background: 'linear-gradient(90deg, #00d4ff, #7b2cbf)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>NEXUS KYC Pro Dashboard</h1>
-            <button onClick={handleLogout} style={{padding: '0.5rem 1.5rem', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', cursor: 'pointer'}}>Logout</button>
+          <header>
+            <h1>NEXUS KYC Pro Dashboard</h1>
+            <button onClick={handleLogout} className="btn-secondary">Logout</button>
           </header>
-          <div className="stats-grid">
-            <div className="stat-card"><h3 style={{color: '#888', fontSize: '0.875rem', marginBottom: '0.5rem'}}>Backend Status</h3><p className="stat-value">Connected</p></div>
-            <div className="stat-card"><h3 style={{color: '#888', fontSize: '0.875rem', marginBottom: '0.5rem'}}>API URL</h3><p style={{fontSize: '0.875rem', color: '#00d4ff'}}>{API_URL}</p></div>
+          
+          {message && <div className="success">{message}</div>}
+          {error && <div className="error">{error}</div>}
+
+          <div style={{display: 'flex', gap: '1rem', marginBottom: '1.5rem'}}>
+            <button className={activeTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
+            <button className={activeTab === 'pipeline' ? 'btn-primary' : 'btn-secondary'} onClick={() => setActiveTab('pipeline')}>KYC Pipeline</button>
+            <button className={activeTab === 'companies' ? 'btn-primary' : 'btn-secondary'} onClick={() => setActiveTab('companies')}>Firmen</button>
           </div>
-          <div style={{background: 'rgba(0,212,255,0.05)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(0,212,255,0.2)'}}>
-            <h2 style={{color: '#00d4ff', marginBottom: '1rem'}}>Welcome to NEXUS KYC Pro!</h2>
-            <p>Your backend is successfully connected.</p>
-          </div>
+
+          {activeTab === 'dashboard' && (
+            <>
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <h3>Aktive KYC Cases</h3>
+                  <p className="stat-value">{cases.length}</p>
+                </div>
+                <div className="stat-card">
+                  <h3>Gespeicherte Firmen</h3>
+                  <p className="stat-value">{companies.length}</p>
+                </div>
+                <div className="stat-card">
+                  <h3>API Status</h3>
+                  <p className="stat-value" style={{fontSize: '1.5rem', color: '#10b981'}}>✅ Online</p>
+                </div>
+              </div>
+
+              <div className="section">
+                <h2>⚡ Schnellaktionen</h2>
+                <button className="btn-primary" onClick={createCase}>+ Neuen KYC Case erstellen</button>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'pipeline' && (
+            <div className="section">
+              <h2>🔄 6-Schritt KYC Pipeline</h2>
+              <p style={{color: '#888', marginBottom: '1rem'}}>Unser bewährtes Verfahren für vollständige KYC-Compliance</p>
+              <div className="pipeline">
+                {PIPELINE_STEPS.map((step, idx) => (
+                  <div key={step.id} className={'pipeline-step ' + (idx === 0 ? 'active' : idx < 0 ? 'completed' : '')}>
+                    <h4>Schritt {step.id}</h4>
+                    <p>{step.name}</p>
+                    <small style={{color: '#888', fontSize: '0.7rem'}}>{step.desc}</small>
+                  </div>
+                ))}
+              </div>
+              <div style={{marginTop: '2rem', padding: '1rem', background: 'rgba(0,212,255,0.05)', borderRadius: '8px'}}>
+                <h4 style={{color: '#00d4ff', marginBottom: '0.5rem'}}>🎯 Vorteile gegenüber companyinfo.de:</h4>
+                <ul style={{paddingLeft: '1.5rem', color: '#ccc'}}>
+                  <li>Visuelle 6-Schritt Pipeline (companyinfo.de hat keine!)</li>
+                  <li>Integrierte UBO-Ermittlung</li>
+                  <li>Automatische PEP/Sanktionslisten-Prüfung</li>
+                  <li>Dokumenten-Management mit OCR</li>
+                  <li>Modernes UI/UX Design</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'companies' && (
+            <div className="section">
+              <h2>🔍 Handelsregister-Suche</h2>
+              <div style={{display: 'flex', gap: '0.5rem', marginBottom: '1rem'}}>
+                <input type="text" placeholder="Firmenname oder HRB-Nummer..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{flex: 1}} />
+                <button className="btn-primary" onClick={searchHandelsregister}>Suchen</button>
+              </div>
+              <div className="company-list">
+                {companies.length === 0 ? (
+                  <p style={{color: '#888', textAlign: 'center', padding: '2rem'}}>Noch keine Firmen gespeichert. Nutze die Suche, um Firmen aus dem Handelsregister zu finden.</p>
+                ) : (
+                  companies.map(c => (
+                    <div key={c.id} className="company-item">
+                      <strong>{c.name}</strong>
+                      <p style={{color: '#888', fontSize: '0.875rem'}}>{c.registration_number} | {c.city}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       );
     }
+
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>`;
-
-app.get('*', (req, res) => {
-  res.send(html);
-});
-
-app.listen(PORT, async () => {
-  console.log('NEXUS KYC Pro Server running on port ' + PORT);
-  await initDB();
-});
