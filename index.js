@@ -72,13 +72,66 @@ app.get('/api/dashboard/stats', async (req, res) => {
   }
 });
 
+app.get('/api/companies', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Access denied' });
+  try {
+    jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    res.json([]);
+  } catch (err) {
+    res.status(403).json({ error: 'Invalid token' });
+  }
+});
+
+app.get('/api/cases', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Access denied' });
+  try {
+    jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    res.json([]);
+  } catch (err) {
+    res.status(403).json({ error: 'Invalid token' });
+  }
+});
+
+app.post('/api/cases', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Access denied' });
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const { company_id, notes } = req.body;
+    const caseNumber = 'KYC-' + Date.now();
+    const result = await pool.query('INSERT INTO kyc_cases (user_id, company_id, case_number, notes, current_step, steps_completed) VALUES ($1, $2, $3, $4, 1, $5) RETURNING *', [decoded.userId, company_id || 1, caseNumber, notes || '', '[]']);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(403).json({ error: 'Invalid token' });
+  }
+});
+
+app.get('/api/companies/search-handelsregister', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Access denied' });
+  try {
+    jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const { query } = req.query;
+    res.json([{ name: query || 'Musterfirma GmbH', registration_number: 'HRB' + Math.floor(Math.random() * 100000), legal_form: 'GmbH', status: 'active', address: 'Musterstraße 1, 10115 Berlin' }]);
+  } catch (err) {
+    res.status(403).json({ error: 'Invalid token' });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 app.get('/api', (req, res) => {
-  res.json({ message: 'NEXUS KYC Pro API', version: '1.0.0', endpoints: ['/api/auth/register', '/api/auth/login', '/api/dashboard/stats'] });
+  res.json({ message: 'NEXUS KYC Pro API', version: '1.0.0', endpoints: ['/api/auth/register', '/api/auth/login', '/api/dashboard/stats', '/api/companies', '/api/cases'] });
 });
+
 const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -105,18 +158,13 @@ const html = `<!DOCTYPE html>
     .stat-card h3 { color: #888; font-size: 0.875rem; margin-bottom: 0.5rem; }
     .stat-value { font-size: 2rem; font-weight: 700; background: linear-gradient(90deg, #00d4ff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .btn-primary { padding: 0.75rem 1.5rem; background: linear-gradient(90deg, #00d4ff, #7b2cbf); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; margin-bottom: 1rem; }
-    .btn-secondary { padding: 0.75rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; cursor: pointer; margin-left: 0.5rem; }
+    .btn-secondary { padding: 0.5rem 1.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; cursor: pointer; }
     .section { background: rgba(255,255,255,0.03); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
     .section h2 { color: #00d4ff; margin-bottom: 1rem; font-size: 1.25rem; }
     .pipeline { display: flex; gap: 0.5rem; margin-top: 1rem; overflow-x: auto; }
     .pipeline-step { flex: 1; min-width: 120px; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: center; border: 2px solid transparent; }
     .pipeline-step.active { border-color: #00d4ff; background: rgba(0,212,255,0.1); }
-    .pipeline-step.completed { border-color: #10b981; background: rgba(16,185,129,0.1); }
-    .pipeline-step h4 { font-size: 0.75rem; color: #888; margin-bottom: 0.5rem; }
-    .pipeline-step p { font-size: 0.875rem; font-weight: 600; }
     input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 0.75rem; margin-bottom: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; }
-    .company-list { margin-top: 1rem; }
-    .company-item { padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 0.5rem; border: 1px solid rgba(255,255,255,0.1); }
     .error { background: rgba(255,0,0,0.1); color: #ff6b6b; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; }
     .success { background: rgba(16,185,129,0.1); color: #10b981; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; text-align: center; }
   </style>
@@ -144,16 +192,11 @@ const html = `<!DOCTYPE html>
       const [isLogin, setIsLogin] = useState(true);
       const [error, setError] = useState('');
       const [activeTab, setActiveTab] = useState('dashboard');
-      const [searchQuery, setSearchQuery] = useState('');
-      const [companies, setCompanies] = useState([]);
       const [cases, setCases] = useState([]);
       const [message, setMessage] = useState('');
 
       useEffect(() => {
-        if (token) {
-          fetchCompanies();
-          fetchCases();
-        }
+        if (token) fetchCases();
       }, [token]);
 
       const handleAuth = async (e) => {
@@ -171,16 +214,6 @@ const html = `<!DOCTYPE html>
 
       const handleLogout = () => { localStorage.removeItem('token'); setToken(null); };
 
-      const fetchCompanies = async () => {
-        try {
-          const response = await fetch(API_URL + '/api/companies', { headers: { 'Authorization': 'Bearer ' + token } });
-          if (response.ok) {
-            const data = await response.json();
-            setCompanies(data);
-          }
-        } catch (err) { console.error(err); }
-      };
-
       const fetchCases = async () => {
         try {
           const response = await fetch(API_URL + '/api/cases', { headers: { 'Authorization': 'Bearer ' + token } });
@@ -189,17 +222,6 @@ const html = `<!DOCTYPE html>
             setCases(data);
           }
         } catch (err) { console.error(err); }
-      };
-
-      const searchHandelsregister = async () => {
-        if (!searchQuery) return;
-        try {
-          const response = await fetch(API_URL + '/api/companies/search-handelsregister?query=' + encodeURIComponent(searchQuery), {
-            headers: { 'Authorization': 'Bearer ' + token }
-          });
-          const data = await response.json();
-          setMessage('Gefunden: ' + (data[0]?.name || 'Keine Ergebnisse'));
-        } catch (err) { setError('Suche fehlgeschlagen'); }
       };
 
       const createCase = async () => {
@@ -251,7 +273,6 @@ const html = `<!DOCTYPE html>
           <div style={{display: 'flex', gap: '1rem', marginBottom: '1.5rem'}}>
             <button className={activeTab === 'dashboard' ? 'btn-primary' : 'btn-secondary'} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
             <button className={activeTab === 'pipeline' ? 'btn-primary' : 'btn-secondary'} onClick={() => setActiveTab('pipeline')}>KYC Pipeline</button>
-            <button className={activeTab === 'companies' ? 'btn-primary' : 'btn-secondary'} onClick={() => setActiveTab('companies')}>Firmen</button>
           </div>
 
           {activeTab === 'dashboard' && (
@@ -262,17 +283,12 @@ const html = `<!DOCTYPE html>
                   <p className="stat-value">{cases.length}</p>
                 </div>
                 <div className="stat-card">
-                  <h3>Gespeicherte Firmen</h3>
-                  <p className="stat-value">{companies.length}</p>
-                </div>
-                <div className="stat-card">
                   <h3>API Status</h3>
-                  <p className="stat-value" style={{fontSize: '1.5rem', color: '#10b981'}}>✅ Online</p>
+                  <p className="stat-value" style={{fontSize: '1.5rem', color: '#10b981'}}>Online</p>
                 </div>
               </div>
-
               <div className="section">
-                <h2>⚡ Schnellaktionen</h2>
+                <h2>Schnellaktionen</h2>
                 <button className="btn-primary" onClick={createCase}>+ Neuen KYC Case erstellen</button>
               </div>
             </>
@@ -280,11 +296,11 @@ const html = `<!DOCTYPE html>
 
           {activeTab === 'pipeline' && (
             <div className="section">
-              <h2>🔄 6-Schritt KYC Pipeline</h2>
+              <h2>6-Schritt KYC Pipeline</h2>
               <p style={{color: '#888', marginBottom: '1rem'}}>Unser bewährtes Verfahren für vollständige KYC-Compliance</p>
               <div className="pipeline">
-                {PIPELINE_STEPS.map((step, idx) => (
-                  <div key={step.id} className={'pipeline-step ' + (idx === 0 ? 'active' : idx < 0 ? 'completed' : '')}>
+                {PIPELINE_STEPS.map((step) => (
+                  <div key={step.id} className="pipeline-step active">
                     <h4>Schritt {step.id}</h4>
                     <p>{step.name}</p>
                     <small style={{color: '#888', fontSize: '0.7rem'}}>{step.desc}</small>
@@ -292,7 +308,7 @@ const html = `<!DOCTYPE html>
                 ))}
               </div>
               <div style={{marginTop: '2rem', padding: '1rem', background: 'rgba(0,212,255,0.05)', borderRadius: '8px'}}>
-                <h4 style={{color: '#00d4ff', marginBottom: '0.5rem'}}>🎯 Vorteile gegenüber companyinfo.de:</h4>
+                <h4 style={{color: '#00d4ff', marginBottom: '0.5rem'}}>Vorteile gegenüber companyinfo.de:</h4>
                 <ul style={{paddingLeft: '1.5rem', color: '#ccc'}}>
                   <li>Visuelle 6-Schritt Pipeline (companyinfo.de hat keine!)</li>
                   <li>Integrierte UBO-Ermittlung</li>
@@ -300,28 +316,6 @@ const html = `<!DOCTYPE html>
                   <li>Dokumenten-Management mit OCR</li>
                   <li>Modernes UI/UX Design</li>
                 </ul>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'companies' && (
-            <div className="section">
-              <h2>🔍 Handelsregister-Suche</h2>
-              <div style={{display: 'flex', gap: '0.5rem', marginBottom: '1rem'}}>
-                <input type="text" placeholder="Firmenname oder HRB-Nummer..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{flex: 1}} />
-                <button className="btn-primary" onClick={searchHandelsregister}>Suchen</button>
-              </div>
-              <div className="company-list">
-                {companies.length === 0 ? (
-                  <p style={{color: '#888', textAlign: 'center', padding: '2rem'}}>Noch keine Firmen gespeichert. Nutze die Suche, um Firmen aus dem Handelsregister zu finden.</p>
-                ) : (
-                  companies.map(c => (
-                    <div key={c.id} className="company-item">
-                      <strong>{c.name}</strong>
-                      <p style={{color: '#888', fontSize: '0.875rem'}}>{c.registration_number} | {c.city}</p>
-                    </div>
-                  ))
-                )}
               </div>
             </div>
           )}
@@ -333,3 +327,12 @@ const html = `<!DOCTYPE html>
   </script>
 </body>
 </html>`;
+
+app.get('*', (req, res) => {
+  res.send(html);
+});
+
+app.listen(PORT, async () => {
+  console.log('NEXUS KYC Pro Server running on port ' + PORT);
+  await initDB();
+});
