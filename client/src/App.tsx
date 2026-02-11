@@ -247,17 +247,14 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 }
 
 function App() {
-  const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'))
 
-  const handleLogin = (userData: User, authToken: string) => {
-    setUser(userData)
+  const handleLogin = (_user: User, authToken: string) => {
     setToken(authToken)
   }
 
   const handleLogout = () => {
     localStorage.removeItem('token')
-    setUser(null)
     setToken(null)
   }
 
